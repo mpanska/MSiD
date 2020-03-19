@@ -7,7 +7,8 @@
 # --------------------------------------------------------------------------
 
 import numpy as np
-from numpy.linalg import inv
+from numpy.linalg import inv as inv
+
 from utils import polynomial
 
 
@@ -19,12 +20,8 @@ def mean_squared_error(x, y, w):
     :return: błąd średniokwadratowy pomiędzy wyjściami y oraz wyjściami
      uzyskanymi z wielowamiu o parametrach w dla wejść x
     """
-    # N = polynomial(x,w).shape[0]  # to jest nasze N; polynomial - y z daszkiem
-    N = len(x)
-    sum = 0.0
-    for n in range(N):
-        sum += (y[n] - polynomial(x[n], w)) ** 2    # n - numer przykladu ze zbioru x
-    return sum / N
+    N = x.size
+    return np.sum(np.square(np.subtract(y, polynomial(x, w)))) / N
 
 
 def design_matrix(x_train, M):
@@ -33,11 +30,11 @@ def design_matrix(x_train, M):
     :param M: stopień wielomianu 0,1,2,...
     :return: funkcja wylicza Design Matrix Nx(M+1) dla wielomianu rzędu M
     """
-    N = len(x_train)
-    des_matrix = np.array[N][M + 1]
+    N = x_train.size
+    des_matrix = np.zeros(shape=(N, M + 1))
     for n in range(N):
         for m in range(M + 1):
-            des_matrix[n, m] = x_train[n] ** m
+            des_matrix[n][m] = x_train[n] ** m
     return des_matrix
 
 
@@ -49,8 +46,8 @@ def least_squares(x_train, y_train, M):
     :return: funkcja zwraca krotkę (w,err), gdzie w są parametrami dopasowanego 
     wielomianu, a err to błąd średniokwadratowy dopasowania
     """
-    f = design_matrix(x_train, M)                              # ze wzoru (2) inv - macierz odwrotna
-    w = (inv(f.T.dot(f))).dot(f.T).dot(y_train)
+    des_matrix = design_matrix(x_train, M)
+    w = inv(des_matrix.transpose() @ des_matrix) @ des_matrix.transpose() @ y_train
     err = mean_squared_error(x_train, y_train, w)
     return w, err
 
@@ -65,7 +62,10 @@ def regularized_least_squares(x_train, y_train, M, regularization_lambda):
     wielomianu zgodnie z kryterium z regularyzacją l2, a err to błąd 
     średniokwadratowy dopasowania
     """
-    pass
+    des_matrix = design_matrix(x_train, M)
+    w = inv(des_matrix.transpose() @ des_matrix + regularization_lambda * np.eye(M + 1)) @ des_matrix.transpose() @ y_train
+    err = mean_squared_error(x_train, y_train, w)
+    return w, err
 
 
 def model_selection(x_train, y_train, x_val, y_val, M_values):
@@ -80,7 +80,16 @@ def model_selection(x_train, y_train, x_val, y_val, M_values):
     ciągu walidacyjnym, train_err i val_err to błędy na sredniokwadratowe na 
     ciągach treningowym i walidacyjnym
     """
-    pass
+    train_err = []
+    val_err = []
+    w_list = []
+    for m in M_values:
+        (w, err) = least_squares(x_train, y_train, m)
+        w_list.append(w)
+        train_err.append(err)
+        val_err.append(mean_squared_error(x_val, y_val, w))
+    index = val_err.index(min(val_err))
+    return w_list[index], train_err[index], val_err[index]
 
 
 def regularized_model_selection(x_train, y_train, x_val, y_val, M, lambda_values):
@@ -98,4 +107,13 @@ def regularized_model_selection(x_train, y_train, x_val, y_val, M, lambda_values
     na ciągach treningowym i walidacyjnym. regularization_lambda to najlepsza
     wartość parametru regularyzacji
     """
-    pass
+    train_err = []
+    val_err = []
+    w_list = []
+    for l in lambda_values:
+        (w, err) = regularized_least_squares(x_train, y_train, M, l)
+        w_list.append(w)
+        train_err.append(err)
+        val_err.append(mean_squared_error(x_val, y_val, w))
+    index = val_err.index(min(val_err))
+    return w_list[index], train_err[index], val_err[index], lambda_values[index]
